@@ -1,0 +1,57 @@
+---
+format:
+   pdf:
+     documentclass: book
+     classoption: [openright,twoside]
+     fontsize: 11pt
+     include-in-header: _header.tex
+     pdf-engine: pdflatex
+     number-sections: true
+---
+\pagenumbering{gobble}
+
+\thispagestyle{empty}
+
+\begin{center}
+\includegraphics[height=3cm]{tecnologico-de-monterrey-blue}
+
+\vspace{2cm}
+
+\LARGE \textbf{MA2003B Application of Multivariate Methods \\ in Data Science} \par
+\vspace{1cm}
+
+
+\Large \textbf{Module 1: Interdependence Relationships} \par
+
+\vspace{7cm}
+
+
+\large 
+
+\begin{tabular}{rl}
+\textbf{Instructor:} & Raul Gomez \\
+\textbf{Email:} & \url{rgomez@tec.mx} \\
+\textbf{Office:} & A4-123A \\
+\end{tabular}
+\par
+
+\vfill
+
+\large \today\par
+
+\end{center}
+
+\newpage
+
+\thispagestyle{empty}
+
+\mbox{}
+\vfill
+
+\newpage
+
+\pagenumbering{arabic}
+
+{{< include _1tidy_data.qmd >}}
+{{< include _2qqplot.qmd >}}
+{{< include _3normality_testing.qmd >}}

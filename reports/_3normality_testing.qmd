@@ -1,0 +1,42 @@
+# Normality Testing
+
+Although QQ plots are a good way to visually assess the normality of a dataset, they can be subjective and imprecise. Therefore, it becomes necessary to develop more objective and precise statistical tests to determine whether the data we are analyzing follows a normal distribution. In this chapter, we will explore some commonly used statistical tests for normality and discuss some transformations that can be performed on our data to make it more normal-like. 
+
+## Scaling and Standardization 
+
+\begin{definition} 
+An \emph{affine transformation} of a random variable $X$ is a transformation of the form 
+$$
+Y = aX + b
+$$
+where $a$ and $b$ are constants.
+\end{definition}
+
+\begin{remark}
+In the context of statistics, affine transformations are often refered to as \emph{scaling} (even when they also include a translational component).
+\end{remark}
+
+Now assume that $X$ is a random variable with mean $\mu$ and standard deviation $\sigma$. Then the random variable
+$$ 
+Y = aX + b 
+$$
+will have mean $a\mu + b$ and standard deviation $|a|\sigma$. In particular, if we choose $a = 1/\sigma$ and $b = -\mu/\sigma$, then the random variable
+$$
+Z = \frac{X - \mu}{\sigma}
+$$
+will have mean $0$ and standard deviation $1$. This particular affine transformation is called a \emph{standardization}, and the resulting random variable $Z$ is called the \emph{standardized} version of $X$. $Z$ is also sometimes called the \emph{z-score} of $X$.
+
+\begin{remark}
+Notice that if $X$ is not normally distributed, then $Z$ will \emph{not} be the standard normal distribution. Standardization does not make a non-normal distribution normal.
+\end{remark}
+
+\begin{observation}
+Notice that, by definition, 
+$$
+\gamma_{1}(Z) =\mathbb{E}[Z^{3}] = \frac{\mathbb{E}[(X - \mu)^3]}{\sigma^3} = \gamma_{1}(X)
+$$
+and
+$$
+\gamma_{2}(Z) =\mathbb{E}[Z^{4}] - 3 = \frac{\mathbb{E}[(X - \mu)^4]}{\sigma^4} -3 = \gamma_{2}(X).
+$$
+\end{observation}

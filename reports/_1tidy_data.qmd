@@ -1,0 +1,266 @@
+# An Introduction to the Tidyverse 
+
+The Tidyverse is a collection of R packages designed for data science. It provides a consistent and user-friendly interface for data manipulation, visualization, and analysis. Although formally introduced as an ecosystem in 2016, many of these packages were developed by Hadley Wickham between 2007–2014.
+
+## Tidy Data
+
+The core idea of behind the design of the Tidyverse is Wickham's definition of "tidy data" \cite{wickham2014tidydata}.
+
+\begin{definition}
+\emph{Tidy Data} is a way of structuring datasets to make them easier to work with. In tidy data:
+
+\begin{enumerate}
+  \item Each variable forms a column.
+  \item Each observation forms a row.
+  \item Each type of observational unit forms a table.
+\end{enumerate}
+
+This structure allows for easier data manipulation, analysis, and visualization, as it aligns with the way data is typically processed in R. In this section we will describe the basics of the Tidyverse but, for more information on its use, the interested reader can check the following references: \cite{wickham2017r4ds,  wickham2019purrr, wickham2019tidyverse}.
+
+\end{definition}
+
+### Tibbles and pipes
+
+In the Tidyverse, data is often represented using a special type of data frame called a \emph{tibble}. Tibbles are more user-friendly than traditional data frames, as they provide better printing and subsetting behavior. They also allow for more intuitive handling of data. In particular, tibbles are designed to work seamlessly with the pipe operator (`%>%`), which allows for chaining together multiple operations (usually known as "verbs" in the context of the tidyverse) in a clear and concise manner. To illustrate these ideas, in the next section we will perform data cleaning on the "WHO" dataset, to make sure that the associated tibble satisfies the tidy data principles. This is usually the first step in Exploratory Data Analysis (EDA) and is crucial for ensuring that the data is in a suitable format for analysis and visualization.
+
+### An Example: Tidying the WHO dataset
+
+Before starting, we need to load the required libraries and load the WHO dataset: 
+```{r}
+#| output: false
+library("tidyverse")
+library("here")
+library("cowplot")
+library("patchwork")
+library("krulRutils")
+library("ISLR2")
+library("magrittr")
+
+options(scipen = 999) # Disable scientific notation
+data(who)
+``` 
+We can now start our "tidying" process. The main problem with this dataset is that it contains variables (like "new_sp_m014") that are not very clear and that contain more than one piece of information. So we need to separate these variables and introduce better names for them and their associated values. 
+```{r}
+# We start by creating the variable "who_tidy"
+# that contains the cleaned WHO dataset
+who_tidy <- who %>%
+  # We use pivot_longer to eliminate the variables starting with "new"
+  # and use them as values instead
+  pivot_longer(
+    cols = starts_with("new"),
+    names_to = "key",
+    values_to = "cases",
+    values_drop_na = TRUE
+  ) %>%
+  mutate(
+    key = if_else(
+      startsWith(key, "newrel"),
+      sub("newrel", "new_rel", key),
+      key
+    ),
+    cases = as.integer(cases)
+  ) %>%
+  separate(key, into = c("new", "type", "sexage"), sep = "_") %>%
+  separate(sexage, into = c("sex", "age"), sep = 1) %>%
+  select(-new, -iso2, - iso3)  %T>%
+  # Finally, we save the tidy data in both RDS and CSV formats
+  saveRDS(here("data", "who_tidy.rds")) %>%
+  write_csv(here("data", "who_tidy.csv")) %>%
+  glimpse()
+```
+We now want to convert the columns "type", "sex", and "age" into factors. We start by constructing the following lookup tables:
+```{r}
+who_type_lookup_tbl <- tibble(
+  code = c("ep", "rel", "sn", "sp"),
+  label = c(
+    "Extrapulmonary TB",
+    "Relapse case",
+    "Smear-Negative pulmonary TB",
+    "Smear-Positive pulmonary TB"
+  )
+)
+
+who_sex_lookup_tbl <- tibble(
+  code = c("f", "m"),
+  label = c("Female", "Male")
+)
+
+who_age_lookup_tbl <- tibble(
+  code = c(
+    "014",
+    "1524",
+    "2534",
+    "3544",
+    "4554",
+    "5564",
+    "65"
+  ),
+  label = c(
+    "0-14",
+    "15-24",
+    "25-34",
+    "35-44",
+    "45-54",
+    "55-64",
+    "65+"
+  )
+)
+```
+We can now append factor columns for the corresponding variables in the WHO dataset: 
+```{r}
+who_factor <- who_tidy %>%
+  convert_codes_to_factor(
+    code_col = type,
+    lookup_tbl = who_type_lookup_tbl,
+    lookup_code_col = code,
+    lookup_label_col = label,
+  ) %>%
+  convert_codes_to_factor(
+    code_col = sex,
+    lookup_tbl = who_sex_lookup_tbl,
+    lookup_code_col = code,
+    lookup_label_col = label,
+  ) %>%
+  convert_codes_to_factor(
+    code_col = age,
+    lookup_tbl = who_age_lookup_tbl,
+    lookup_code_col = code,
+    lookup_label_col = label,
+  ) %>%
+  glimpse()
+``` 
+Finally, we want to use this information to analyze the number of cases of tuberculosis by type and sex. We start by generating the corresponding frequency tibble.
+```{r}
+who_type_sex_tbl <- who_factor %>%
+  count(type_factor, sex_factor, wt = cases, name = "cases") %>%
+  print(n = Inf) 
+```
+
+## The "Grammar of Graphics" and ggplot2
+
+The concept of the "Grammar of Graphics" was introduced by Leland Wilkinson in his 1999 book \emph{The Grammar of Graphics} \cite{wilkinson1999grammar}. This provides a framework for understanding how to create visualizations in a systematic way. It breaks down the process of creating a plot into components such as data, aesthetics, geometries, statistics, coordinates, and themes. The `ggplot2` package \cite{wickham2016ggplot2} implements this grammar in R, allowing users to build complex visualizations by layering these components. For more information on the Grammar of Graphics, its history and applications, the interested reader can consult the following references: \cite{cleveland1993elements, hyndman2021forecasting}.
+
+### Layers in ggplot2
+
+In \texttt{ggplot2}, plots are constructed by adding multiple \emph{layers} that define the components of the visualization. Each layer corresponds to a specific aspect of the plot, and together they form the complete graphic. These layers include:
+
+\begin{enumerate}
+\item \textbf{Data:} The dataset to be visualized (usually a data frame or tibble). This is the source of the information for the plot.
+
+\item \textbf{Aesthetics:} Mappings that relate variables in the data to visual properties of the plot, such as:
+    \begin{itemize}
+      \item Position on the x- and y-axes.
+      \item Color, fill.
+      \item Size, shape.
+      \item Transparency.
+    \end{itemize}
+These mappings define \emph{what} data is shown and \emph{how} it is represented visually.
+
+\item \textbf{Geometries:} Geometric objects that display the data, for example:
+    \begin{itemize}
+      \item \texttt{geom\_point()} for scatterplots.
+      \item \texttt{geom\_line()} for line graphs.
+      \item \texttt{geom\_col()} for bar charts.
+      \item \texttt{geom\_histogram()} for histograms.
+    \end{itemize}
+The geometry controls \emph{how} the data is drawn.
+
+\item \textbf{Statistical transformations:}
+    Optional calculations applied to the data before plotting, such as:
+    \begin{itemize}
+      \item \texttt{stat\_bin()} for binning data in histograms.
+      \item \texttt{stat\_smooth()} for fitting smooth curves.
+    \end{itemize}
+    These are preprocessing steps for the data visualization.
+
+  \item \textbf{Scales:} Define how data values are translated into visual properties, for example mapping numeric values to colors or shapes. Scales also control axis ticks, legends, and guides.
+
+  \item \textbf{Coordinates:} The coordinate system used for the plot, such as Cartesian (\texttt{coord\_cartesian()}), polar (\texttt{coord\_polar()}), or flipped coordinates (\texttt{coord\_flip()}).
+
+  \item \textbf{Facets:} Methods to split the data into subsets and display multiple plots arranged in a grid:
+    \begin{itemize}
+      \item \texttt{facet\_wrap()}
+      \item \texttt{facet\_grid()}
+    \end{itemize}
+
+  \item \textbf{Labels:} \texttt{labs()} adds titles, axis labels, and captions.
+
+  \item \textbf{Themes:} \texttt{theme()} controls the overall appearance of the plot (fonts, background, gridlines).
+\end{enumerate}
+
+Each layer can be combined and customized to build complex and elegant plots. This \emph{layered grammar} allows you to think of your graphic as a composition of independent components rather than a single, monolithic object.
+
+### Plotting with ggplot2
+
+We will illustrate these concepts by plotting the number of cases of tuberculosis by type and sex, using the frequency tibble we created earlier. 
+```{r}
+who_type_sex_plot <- who_type_sex_tbl %>%
+  ggplot(aes(x = type_factor, y = cases, fill = sex_factor)) +
+  geom_col(position = "dodge") +
+  c_scale_fill("C rose", "C blue") +
+  labs(
+    title = "Tuberculosis Cases by Type and Sex",
+    x = "Tuberculosis Type",
+    y = "Cases",
+    fill = "Sex"
+  ) +
+  theme_krul()
+```
+We can now save and plot the graph:
+```{r}
+#| fig-width: 12
+#| fig-height: 6
+#| fig-cap: "\\small This plot shows a comparative analysis of the number of cases of tuberculosis by type and sex. As we can see from the plot, the number of cases is consistently higher for the male population across all types of tuberculosis. "
+ggsave(
+  filename = here("images", "who_plot.png"),
+  plot = who_type_sex_plot,
+  width = 12,
+  height = 6,
+  dpi = 300
+)
+who_type_sex_plot
+```
+
+## Activity: Tidying the Billboard dataset
+
+The problem with the Billboard dataset, according to the principles of "tidy data", is that the weeks in which a song appeared in the Billboard chart are represented as columns, which makes it difficult to analyze the data. Using the techniques we have learned so far, the reader is required to tidy the Billboard dataset, so that it can be used to analyze the evolution of the ranking of the song "Who Let The Dogs Out" by "Baha Men" in the Billboard Hot 100 chart. The final visualization should look like the one shown below.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.8\textwidth]{images/dogs_out_plot.png}
+\caption{Evolution of the ranking of the song 'Who Let The Dogs Out' by 'Baha Men' in the Billboard Hot 100 chart. The song peaked at rank 40 in the week of October 21st, 2000, and remained in the top 100 for several weeks.}
+\end{figure}
+
+
+
+\begin{thebibliography}{99}
+
+\bibitem{cleveland1993elements}
+Cleveland, W. S. (1993) \textit{The Elements of Graphing Data}. Hobart Press.
+
+\bibitem{hyndman2021forecasting}
+Hyndman, R. J., and Athanasopoulos, G. (2021) \textit{Forecasting: Principles and Practice} (3rd ed.). OTexts. \url{https://otexts.com/fpp3/}
+
+\bibitem{wickham2014tidydata}
+Wickham, H. (2014) Tidy data. \textit{Journal of Statistical Software}, \textit{59}(10), 1–23. \url{https://doi.org/10.18637/jss.v059.i10}
+
+\bibitem{wickham2016ggplot2}
+Wickham, H. (2016) \textit{ggplot2: Elegant Graphics for Data Analysis}. Springer-Verlag.
+
+\bibitem{wickham2017r4ds}
+Wickham, H., and Grolemund, G. (2017) \textit{R for Data Science: Import, Tidy, Transform, Visualize, and Model Data}. O'Reilly Media.
+
+\bibitem{wickham2019purrr}
+Wickham, H. (2019) Functional programming with purrr. \textit{UseR! Conference}.
+
+\bibitem{wickham2019tidyverse}
+Wickham, H., et al. (2019) Welcome to the tidyverse. \textit{Journal of Open Source Software}, \textit{4}(43), 1686. \url{https://doi.org/10.21105/joss.01686}
+
+\bibitem{wilkinson1999grammar}
+Wilkinson, L. (1999) \textit{The Grammar of Graphics}. Springer-Verlag.
+
+\end{thebibliography}
+
+\vfill 
+
+\newpage
